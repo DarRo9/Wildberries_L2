@@ -261,7 +261,7 @@ func grep(data []string, f keys) (interface{}, error) {
 func main() {
 	flgs := keys{rExp: "\\.txt"}
 	// Cчитывание файла
-	data := readData("for_test.txt")
+	data := readData("example.txt")
 	// Выполнение операции
 	res, _ := grep(data, flgs)
 	// Вывод результата
