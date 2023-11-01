@@ -20,7 +20,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -28,8 +27,8 @@ import (
 	"sort"
 )
 
-// Структура флагов программы
-type flags struct {
+// keys - структура флагов программы
+type keys struct {
 	after      int
 	before     int
 	context    int
@@ -39,41 +38,13 @@ type flags struct {
 	fixed      bool
 	lineNum    bool
 	rExp       string
-	filename   string
 }
 
-// Функция считывает флаги из аргументов запуска программы
-func parseFlags() *flags {
-	f := flags{}
+// readData - функция чтениия файла в срез строк
+func readData(nameOfFile string) []string {
+	var data []string
 
-	flag.IntVar(&f.after, "A", 0, `"after" печатать +N строк после совпадения`)
-	flag.IntVar(&f.before, "B", 0, `"before" печатать +N строк до совпадения`)
-	flag.IntVar(&f.context, "C", 0, "печатать ±N строк вокруг совпадения")
-	flag.StringVar(&f.rExp, "r", "", "регулярное выражение")
-	flag.StringVar(&f.filename, "f", "", "имя файла")
-
-	flagC := flag.Bool("c", false, "количество строк")
-	flagI := flag.Bool("i", false, "игнорировать регистр")
-	flagV := flag.Bool("v", false, "вместо совпадения, исключать")
-	flagF := flag.Bool("F", false, "точное совпадение со строкой, не паттерн")
-	flagN := flag.Bool("n", false, "напечатать номер строки")
-
-	flag.Parse()
-
-	f.count = *flagC
-	f.invert = *flagV
-	f.ignoreCase = *flagI
-	f.fixed = *flagF
-	f.lineNum = *flagN
-
-	return &f
-}
-
-// Функция чтениия файла в срез строк
-func readFile(filename string) []string {
-	var rows []string
-
-	file, err := os.Open(filename)
+	file, err := os.Open(nameOfFile)
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
@@ -82,19 +53,19 @@ func readFile(filename string) []string {
 	}(file)
 
 	if err != nil {
-		log.Fatal("Не могу открыть файл ", filename)
+		log.Fatal("Не могу открыть файл ", nameOfFile)
 	}
 
 	sc := bufio.NewScanner(file)
 	for sc.Scan() {
-		rows = append(rows, sc.Text())
+		data = append(data, sc.Text())
 	}
 
-	return rows
+	return data
 }
 
-// Функция печатает результат вывода grep на экран
-func printResults(res interface{}) {
+// showResult функция печатает результат вывода grep на экран
+func showResult(res interface{}) {
 	switch result := res.(type) {
 	case []string:
 		for _, str := range result {
@@ -109,15 +80,15 @@ func printResults(res interface{}) {
 	}
 }
 
-// Функция копирует из слайса в мапу данные из заданного интервала в слайсе
+// copyToMapByInterval - функция копирует из слайса в мапу данные из заданного интервала в слайсе
 func copyToMapByInterval(m map[int]string, data []string, first int, last int) {
 	for k := first; k < last; k++ {
 		m[k] = data[k]
 	}
 }
 
-// Функция возвращает слайс чисел (отсортированных ключей мапы)
-func getSortedMapKeys(m map[int]string) []int {
+// sortMapKeys - функция возвращает слайс чисел (отсортированных ключей мапы)
+func sortMapKeys(m map[int]string) []int {
 	keys := make([]int, 0, 1)
 	for k := range m {
 		keys = append(keys, k)
@@ -126,8 +97,8 @@ func getSortedMapKeys(m map[int]string) []int {
 	return keys
 }
 
-// Функция, на основе промежуточной мапы и ее отсортированных ключей, формирует результат
-func evalResult(m map[int]string, keys []int) []string {
+// GenerateTheResult - функция, на основе промежуточной мапы и ее отсортированных ключей, формирует результат
+func GenerateTheResult(m map[int]string, keys []int) []string {
 	res := make([]string, 0, len(m))
 	for _, key := range keys {
 		res = append(res, m[key])
@@ -136,8 +107,8 @@ func evalResult(m map[int]string, keys []int) []string {
 	return res
 }
 
-// Реализует ключ -B
-func grepBefore(rExp *regexp.Regexp, f flags, data []string) map[int]string {
+// keyB для реализации ключа -B
+func keyB(rExp *regexp.Regexp, f keys, data []string) map[int]string {
 	mapBuf := make(map[int]string)
 	for ind, str := range data {
 		if rExp.MatchString(str) && !f.invert || !rExp.MatchString(str) && f.invert {
@@ -152,8 +123,8 @@ func grepBefore(rExp *regexp.Regexp, f flags, data []string) map[int]string {
 	return mapBuf
 }
 
-// Реализует ключ -A
-func grepAfter(rExp *regexp.Regexp, f flags, data []string) map[int]string {
+// keyA для реализации ключа -A
+func keyA(rExp *regexp.Regexp, f keys, data []string) map[int]string {
 	mapBuf := make(map[int]string)
 	for ind, str := range data {
 		if rExp.MatchString(str) && !f.invert || !rExp.MatchString(str) && f.invert {
@@ -168,8 +139,8 @@ func grepAfter(rExp *regexp.Regexp, f flags, data []string) map[int]string {
 	return mapBuf
 }
 
-// Реализует ключ -C
-func grepContext(rExp *regexp.Regexp, f flags, data []string) map[int]string {
+// keyC для реализации ключа -C
+func keyC(rExp *regexp.Regexp, f keys, data []string) map[int]string {
 	mapBuf := make(map[int]string)
 	for ind, str := range data {
 		if rExp.MatchString(str) && !f.invert || !rExp.MatchString(str) && f.invert {
@@ -193,7 +164,7 @@ func grepContext(rExp *regexp.Regexp, f flags, data []string) map[int]string {
 }
 
 // Реализует простейший grep
-func grepSimple(rExp *regexp.Regexp, f flags, data []string) map[int]string {
+func grepSimple(rExp *regexp.Regexp, f keys, data []string) map[int]string {
 	mapBuf := make(map[int]string)
 	for ind, str := range data {
 		if rExp.MatchString(str) && !f.invert || !rExp.MatchString(str) && f.invert {
@@ -205,7 +176,7 @@ func grepSimple(rExp *regexp.Regexp, f flags, data []string) map[int]string {
 }
 
 // Решает поставленную задачу (выполняетя grep с различными ключами)
-func grep(data []string, f flags) (interface{}, error) {
+func grep(data []string, f keys) (interface{}, error) {
 	var (
 		prefix  string
 		postfix string
@@ -228,13 +199,13 @@ func grep(data []string, f flags) (interface{}, error) {
 	if f.count {
 		cnt := 0
 		if f.before > 0 {
-			beforeRes := grepBefore(rExp, f, data)
+			beforeRes := keyB(rExp, f, data)
 			cnt = len(beforeRes)
 		} else if f.after > 0 {
-			afterRes := grepAfter(rExp, f, data)
+			afterRes := keyA(rExp, f, data)
 			cnt = len(afterRes)
 		} else if f.context > 0 {
-			contextRes := grepContext(rExp, f, data)
+			contextRes := keyC(rExp, f, data)
 			cnt = len(contextRes)
 		} else {
 			simpleRes := grepSimple(rExp, f, data)
@@ -246,54 +217,53 @@ func grep(data []string, f flags) (interface{}, error) {
 		var lineNumList []int
 
 		if f.before > 0 {
-			beforeRes := grepBefore(rExp, f, data)
-			lineNumList = getSortedMapKeys(beforeRes)
+			beforeRes := keyB(rExp, f, data)
+			lineNumList = sortMapKeys(beforeRes)
 		} else if f.after > 0 {
-			afterRes := grepAfter(rExp, f, data)
-			lineNumList = getSortedMapKeys(afterRes)
+			afterRes := keyA(rExp, f, data)
+			lineNumList = sortMapKeys(afterRes)
 		} else if f.context > 0 {
-			contextRes := grepContext(rExp, f, data)
-			lineNumList = getSortedMapKeys(contextRes)
+			contextRes := keyC(rExp, f, data)
+			lineNumList = sortMapKeys(contextRes)
 		} else {
 			simpleRes := grepSimple(rExp, f, data)
-			lineNumList = getSortedMapKeys(simpleRes)
+			lineNumList = sortMapKeys(simpleRes)
 		}
 
 		return lineNumList, nil
 	} else if f.before > 0 {
-		mapBuf := grepBefore(rExp, f, data)
-		keys := getSortedMapKeys(mapBuf)
-		res := evalResult(mapBuf, keys)
+		mapBuf := keyB(rExp, f, data)
+		keys := sortMapKeys(mapBuf)
+		res := GenerateTheResult(mapBuf, keys)
 
 		return res, nil
 	} else if f.after > 0 {
-		mapBuf := grepAfter(rExp, f, data)
-		keys := getSortedMapKeys(mapBuf)
-		res := evalResult(mapBuf, keys)
+		mapBuf := keyA(rExp, f, data)
+		keys := sortMapKeys(mapBuf)
+		res := GenerateTheResult(mapBuf, keys)
 
 		return res, nil
 	} else if f.context > 0 {
-		mapBuf := grepContext(rExp, f, data)
-		keys := getSortedMapKeys(mapBuf)
-		res := evalResult(mapBuf, keys)
+		mapBuf := keyC(rExp, f, data)
+		keys := sortMapKeys(mapBuf)
+		res := GenerateTheResult(mapBuf, keys)
 
 		return res, nil
 	} else {
 		mapBuf := grepSimple(rExp, f, data)
-		keys := getSortedMapKeys(mapBuf)
-		res := evalResult(mapBuf, keys)
+		keys := sortMapKeys(mapBuf)
+		res := GenerateTheResult(mapBuf, keys)
 
 		return res, nil
 	}
 }
 
 func main() {
-	// Парсим флаги
-	flgs := parseFlags()
-	// Cчитываем файл
-	data := readFile(flgs.filename)
-	// Выполняем операцию grep
-	res, _ := grep(data, *flgs)
-	// Выводим результат
-	printResults(res)
+	flgs := keys{rExp: "\\.txt"}
+	// Cчитывание файла
+	data := readData("for_test.txt")
+	// Выполнение операции
+	res, _ := grep(data, flgs)
+	// Вывод результата
+	showResult(res)
 }
