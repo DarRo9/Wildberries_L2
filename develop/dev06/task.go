@@ -14,104 +14,162 @@ package main
 import (
 	"bufio"
 	"errors"
-	"flag"
 	"fmt"
-	"io"
-	"log"
+	"math"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
-// Структура хранит флаги для работы программы
-type flags struct {
-	fields    []int
-	delimiter string
-	separated bool
-}
+var fields string
+var delimiter string
+var separated bool
 
-// Функция парсит флаги из аргументов запуска программы
-func parseFlags() *flags {
-	f := flags{}
+// регулярные выражения для processingFields
+var re0 = regexp.MustCompile(`^\d+$`)
+var re1 = regexp.MustCompile(`^\d+\-\d+$`)
+var re2 = regexp.MustCompile(`^\-\d+$`)
+var re3 = regexp.MustCompile(`^\d+\-$`)
 
-	var fieldList string
-	flag.StringVar(&fieldList, "f", "", "выбрать поля (колонки)")
-	flag.StringVar(&f.delimiter, "d", "	", "установить разделить")
-	flagS := flag.Bool("s", true, "только строки с разделителем")
+var errNumbering = errors.New("поля нумеруются с 1")
+var errDiapason = errors.New("неверный уменьшающийся диапазон")
 
-	flag.Parse()
+// cutPrint печатает поля из диапазонов fs строки s.
+func cutPrint(str string, fs [][]int, dr rune) {
 
-	f.separated = *flagS
-
-	var err error
-	f.fields, err = parseFieldList(fieldList)
-	if err != nil {
-		log.Fatal("Bad field list")
-	}
-
-	return &f
-}
-
-// Функция парсит список колонок
-func parseFieldList(fieldList string) ([]int, error) {
-	fieldList = strings.TrimSpace(fieldList)
-	fieldList = removeSpaces(fieldList)
-	intStrList := strings.Split(fieldList, ",")
-	res := make([]int, len(intStrList))
-	for ind, intStr := range intStrList {
-		num, err := strconv.Atoi(intStr)
-		if err != nil {
-			return nil, errors.New("bad field list")
-		}
-		res[ind] = num
-	}
-	return res, nil
-}
-
-// Функция удаляет пробелы и табы из строки
-func removeSpaces(str string) string {
-	res := make([]rune, 0, 1)
-	for _, r := range str {
-		if string(r) != " " && string(r) != "	" {
-			res = append(res, r)
-		}
-	}
-	return string(res)
-}
-
-// Функция реализует утилиту cut
-func cut(str string, f flags) {
-	columns := strings.Split(str, f.delimiter)
-	if len(columns) == 1 && !f.separated {
-		fmt.Println(str)
-	} else if len(columns) > 1 && f.separated {
-		for _, columnInd := range f.fields {
-			if columnInd <= len(columns) {
-				fmt.Print(columns[columnInd-1] + " ")
+	// поиск подстрок, разделенных символом dr
+	var sliceOfStrings []string
+	runes := []rune(str)
+	st := 0
+	congruence := false
+	for i, r := range runes {
+		if r == dr {
+			congruence = true
+			if i == st {
+				sliceOfStrings = append(sliceOfStrings, "")
+			} else {
+				sliceOfStrings = append(sliceOfStrings, string(runes[st:i]))
 			}
+			st = i + 1
+		} else if i == len(runes)-1 {
+			sliceOfStrings = append(sliceOfStrings, string(runes[st:]))
 		}
-		fmt.Println()
 	}
+
+	// строка не содержит разделителя
+	if !congruence {
+		if separated {
+			return
+		}
+		fmt.Println(str)
+		return
+	}
+
+	// если строка оканчивается символом-разделителем
+	if lr, _ := utf8.DecodeLastRuneInString(str); lr == dr {
+		sliceOfStrings = append(sliceOfStrings, "")
+	}
+
+	// выбор подстрок (полей), входящих в диапазоны fs
+	var outSlice []string
+	for i, f := range sliceOfStrings {
+		if indexInSection(i+1, fs) {
+			outSlice = append(outSlice, f)
+		}
+	}
+	fmt.Println(strings.Join(outSlice, string(dr)))
 }
 
-// Цикл чтения и выполнения cut
-func readAndCutCycle(f flags) {
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		str, err := reader.ReadString('\n')
-		str = strings.TrimSpace(str)
-		if err != io.EOF {
-			cut(str, f)
-		} else {
-			break
+// indexInSection возвращает true, если i принадлежит одному из отрезков в section
+func indexInSection(i int, section [][]int) bool {
+	res := section[0][0] <= i && i <= section[0][1]
+	for j := 1; j < len(section); j++ {
+		res = res || (section[j][0] <= i && i <= section[j][1])
+	}
+	return res
+}
+
+/* processingFields парсит строку, переданную через флаг -f
+и возвращает слайс интервалов, отображаемых полей */ 
+func processingFields(str string) (fs [][]int, err error) {
+	strings1 := strings.FieldsFunc(str, func(r rune) bool { return r == ',' })
+
+	// если не указано ни одного поля: ","
+	if len(strings1) == 0 {
+		return nil, errNumbering
+	}
+
+	// указано одно поле (диапазон) перед или после запятой: ",2", "2-4,"
+	contaisComma, err := regexp.MatchString(",", str)
+	if err != nil {
+		return nil, err
+	}
+	if len(strings1) == 1 && contaisComma {
+		return nil, errNumbering
+	}
+	for _, rString := range strings1 {
+
+		// если подстрока соответствует регулярному выражению, диапазон заносится в результат
+		switch {
+		case re0.MatchString(rString):
+			a, _ := strconv.Atoi(rString)
+			if a < 1 {
+				return nil, errNumbering
+			}
+			fs = append(fs, []int{a, a})
+		case re1.MatchString(rString):
+			ds := strings.FieldsFunc(rString, func(r rune) bool { return r == '-' })
+			a, _ := strconv.Atoi(ds[0])
+			if a < 1 {
+				return nil, errNumbering
+			}
+			b, _ := strconv.Atoi(ds[1])
+			if a > b {
+				return nil, errDiapason
+			}
+			fs = append(fs, []int{a, b})
+		case re2.MatchString(rString):
+			b, _ := strconv.Atoi(rString[len("-"):])
+			if b < 1 {
+				return nil, errDiapason
+			}
+			fs = append(fs, []int{1, b})
+		case re3.MatchString(rString):
+			a, _ := strconv.Atoi(rString[:len(rString)-len("-")])
+			if a < 1 {
+				return nil, errNumbering
+			}
+			fs = append(fs, []int{a, math.MaxInt})
+		default:
+			return nil, errors.New("недопустимое значение поля")
 		}
 	}
+	return fs, nil
 }
 
 func main() {
-	f := flags{}
-	// Парсим флаги
-	f = *parseFlags()
-	// Запускаем бесконечный цикл выполнения cut (выход по EOF)
-	readAndCutCycle(f)
+	if fields == "" {
+		fmt.Fprintln(os.Stderr, "поля не указаны")
+		return
+	}
+
+	fs, err := processingFields(fields)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+
+	// Проверка, что в -d передан один символ-руна
+	if dn := utf8.RuneCountInString(delimiter); dn != 1 {
+		fmt.Fprintln(os.Stderr, "разделитель должен быть одним символом")
+		return
+	}
+	dr, _ := utf8.DecodeRuneInString(delimiter)
+
+	sc := bufio.NewScanner(os.Stdin)
+	for sc.Scan() {
+		cutPrint(sc.Text(), fs, dr)
+	}
 }
