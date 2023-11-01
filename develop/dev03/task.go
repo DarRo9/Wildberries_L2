@@ -1,4 +1,15 @@
 /*
+Утилита cut
+
+Реализовать утилиту аналог консольной команды cut (man cut). Утилита должна принимать строки через STDIN, разбивать по разделителю (TAB) на колонки и выводить запрошенные.
+
+Реализовать поддержку утилитой следующих ключей:
+-f - "fields" - выбрать поля (колонки)
+-d - "delimiter" - использовать другой разделитель
+-s - "separated" - только строки с разделителем
+*/
+
+/*
 Утилита sort
 Отсортировать строки в файле по аналогии с консольной утилитой sort (man sort — смотрим описание и основные параметры): на входе подается файл из несортированными строками, на выходе — файл с отсортированными.
 
@@ -17,14 +28,12 @@
 -b — игнорировать хвостовые пробелы
 -c — проверять отсортированы ли данные
 -h — сортировать по числовому значению с учетом суффиксов
-
 */
 
 package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -41,9 +50,25 @@ type flags struct {
 	uniqueValues bool
 }
 
-// Функция исправляет порядок слов в отсортированном лексикографически срезе так, чтобы
-// слова с одинкаовой первой буквой, но с разным регистром находились согласно логике выполнение sort в linux
-func fixUpperCaseOrder(data []string) {
+// reverse обращает срез в обратном порядке
+func reverse(data []string) {
+	for i, j := 0, len(data)-1; i < j; i, j = i+1, j-1 {
+		data[i], data[j] = data[j], data[i]
+	}
+}
+
+// sliceOfKeys возвращает срез ключей отображения
+func sliceOfKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+/* сaseOrder исправляет порядок слов в отсортированном лексикографически срезе так, чтобы
+слова с одинковой первой буквой, но с разным регистром находились согласно логике выполнение sort в linux */
+func сaseOrder(data []string) {
 	for i := 0; i < len(data)-1; i++ {
 		str1 := []rune(data[i])
 		str2 := []rune(data[i+1])
@@ -58,9 +83,8 @@ func fixUpperCaseOrder(data []string) {
 	}
 }
 
-// Быстрая сортировка строк, с возможностью воспринимать слово в строке как число (если оно таковым является)
-
-func StringQuickSort(data []string, start, end int, byNum bool) {
+// SortString осуществляет быструю сортировку строк
+func SortString(data []string, start, end int, byNum bool) {
 	if start < end {
 		base := data[start]
 
@@ -118,13 +142,13 @@ func StringQuickSort(data []string, start, end int, byNum bool) {
 
 		data[left] = base
 
-		StringQuickSort(data, start, left-1, byNum)
-		StringQuickSort(data, left+1, end, byNum)
+		SortString(data, start, left-1, byNum)
+		SortString(data, left+1, end, byNum)
 	}
 }
 
-// Функция оставляет только уникальные строки в срезе
-func onlyUnique(data []string) []string {
+// uniqueS оставляет только уникальные строки в срезе
+func uniqueS(data []string) []string {
 	res := make([]string, 0, len(data))
 	m := make(map[string]bool)
 	for _, str := range data {
@@ -136,23 +160,7 @@ func onlyUnique(data []string) []string {
 	return res
 }
 
-// Функция обращает срез в обратном порядке
-func reversed(data []string) {
-	for i, j := 0, len(data)-1; i < j; i, j = i+1, j-1 {
-		data[i], data[j] = data[j], data[i]
-	}
-}
-
-// Функция возвращает срез ключей отображения
-func getKeysOfMap(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-// Функция сортирует срез строк по колонкам в строке (колонки по умолчанию делятся пробелом)
+// sortByColumn сортирует срез строк по колонкам в строке (колонки по умолчанию делятся пробелом)
 func sortByColumn(data []string, fgs flags) {
 	srcMap := make(map[string]string)
 	for _, str := range data {
@@ -163,72 +171,53 @@ func sortByColumn(data []string, fgs flags) {
 			srcMap[columns[0]] = str
 		}
 	}
-	keysToBeSorted := getKeysOfMap(srcMap)
-	StringQuickSort(keysToBeSorted, 0, len(keysToBeSorted)-1, fgs.sortByNum)
+	keysToBeSorted := sliceOfKeys(srcMap)
+	SortString(keysToBeSorted, 0, len(keysToBeSorted)-1, fgs.sortByNum)
 	for ind, key := range keysToBeSorted {
 		data[ind] = srcMap[key]
 	}
 }
 
-// Функция сортирует срез в соответствии с флагами
+// sort сортирует срез в соответствии с флагами
 func sort(data []string, fgs flags) []string {
 	res := make([]string, len(data))
 	copy(res, data)
 
 	if fgs.sortColumn >= 0 {
 		sortByColumn(res, fgs)
-		fixUpperCaseOrder(res)
+		сaseOrder(res)
 	} else {
-		StringQuickSort(res, 0, len(res)-1, false)
-		fixUpperCaseOrder(res)
+		SortString(res, 0, len(res)-1, false)
+		сaseOrder(res)
 	}
 
 	if fgs.uniqueValues {
-		StringQuickSort(res, 0, len(res)-1, false)
-		fixUpperCaseOrder(res)
-		res = onlyUnique(res)
+		SortString(res, 0, len(res)-1, false)
+		сaseOrder(res)
+		res = uniqueS(res)
 	}
 
 	if fgs.reversedSort {
-		reversed(res)
+		reverse(res)
 	}
 
 	return res
 }
 
-// Функция парсит флаги
-func parseFlags() *flags {
-	s := flags{}
-
-	flag.StringVar(&s.filename, "f", "", "указываем имя файла для сортировки")
-	flag.IntVar(&s.sortColumn, "k", -1, "указываем колонку для сортировки")
-	flagN := flag.Bool("n", false, "сортируем по числовому значению")
-	flagR := flag.Bool("r", false, "сортируем в обратном порядке")
-	flagU := flag.Bool("u", false, "выводим только уникальные значения")
-
-	flag.Parse()
-
-	s.sortByNum = *flagN
-	s.uniqueValues = *flagU
-	s.reversedSort = *flagR
-
-	return &s
-}
-
-// Функция чтениия файла в срез строк
-func readFile(filename string) []string {
+// readF чтения файла в срез строк
+func readF(filename string) []string {
 	var rows []string
 
 	file, err := os.Open(filename)
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			log.Fatal("Не могу закрыть файл")
+			log.Fatal("Ошибка закрытия файла")
 		}
 	}(file)
 
 	if err != nil {
-		log.Fatal("Не могу открыть файл ", filename)
+		log.Fatal("Ошибка открытия файла", filename)
 	}
 
 	sc := bufio.NewScanner(file)
@@ -239,36 +228,35 @@ func readFile(filename string) []string {
 	return rows
 }
 
-// Функция записи среза строк в файл
-func writeToFile(filename string, data []string) {
+// writeToF записи среза строк в файл
+func writeToF(filename string, data []string) {
 	f, err := os.Create(filename)
 	if err != nil {
-		log.Fatal("Не могу создать файл")
+		log.Fatal("Ошибка создания файла")
 	}
 	defer func(f *os.File) {
 		err := f.Close()
 		if err != nil {
-			log.Fatal("Не могу закрыть файл")
+			log.Fatal("Ошибка закрытия файла")
 		}
 	}(f)
 
 	for i := 0; i < len(data); i++ {
 		_, err := fmt.Fprintln(f, data[i])
 		if err != nil {
-			log.Fatal("Не могу записать в файл")
+			log.Fatal("Ошибка записи в файл")
 		}
 	}
 }
 
 func main() {
-	// Парсим флаги
-	flg := parseFlags()
-	// Cчитываем файл
-	data := readFile(flg.filename)
-	// Сортируем срез
-	dataSorted := sort(data, *flg)
-	// Записываем отсортированный срез в файл
-	writeToFile("sorted.txt", dataSorted)
-	// Выводим в консоль отсортированный срез
-	fmt.Println(dataSorted)
+	// Установка флагов
+	flags := flags{}
+	// Cчитывание файла
+	text := readF("for_sorting.txt")
+	// Сортировка среза
+	sortedText := sort(text, flags)
+	// Запись отсортированного среза в файл
+	writeToF("for_sorting.txt", sortedText)
+	fmt.Println(sortedText)
 }
