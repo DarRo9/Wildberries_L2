@@ -18,13 +18,13 @@ qwe\\5 => qwe\\\\\ (*)
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"errors"
 )
 
-func isDigit(r rune) bool {
+func is_digit(r rune) bool {
 	if _, err := strconv.Atoi(string(r)); err == nil {
 		return true
 	} else {
@@ -32,55 +32,54 @@ func isDigit(r rune) bool {
 	}
 }
 
-// Функция проверяет является ли символ буквой
-func isAlpha(r rune) bool {
-	if !isDigit(r) && string(r) != `\` {
+// is_alpha проверяет является ли символ буквой
+func is_alpha(r rune) bool {
+	if !is_digit(r) && string(r) != `\` {
 		return true
 	}
 	return false
 }
 
-// Функция записывает руну ch в builder cnt раз
-func write(ch rune, b *strings.Builder, cnt int) {
+// add записывает руну r в builder
+func add(r rune, b *strings.Builder, cnt int) {
 	for i := 0; i < cnt; i++ {
-		b.WriteString(string(ch))
+		b.WriteString(string(r))
 	}
 }
 
-// Функция распоковывает строку
-func extract(s string) (string, error) {
-	arr := []rune(s)
+func string_unpacking(str string) (string, error) {
+	arr := []rune(str)
 
 	builder := strings.Builder{}
 
 	ind := 0
 	for ind < len(arr) {
-		curCh := arr[ind]
-		if isAlpha(curCh) {
-			builder.WriteString(string(curCh))
-		} else if isDigit(curCh) {
+		r := arr[ind]
+		if is_alpha(r) {
+			builder.WriteString(string(r))
+		} else if is_digit(r) {
 			cnt := 0
 
 			j := ind
 			prevInd := ind
-			for j < len(arr) && isDigit(arr[j]) {
+			for j < len(arr) && is_digit(arr[j]) {
 				buf, _ := strconv.Atoi(string(arr[j]))
 				cnt = cnt*10 + buf
 				j++
 				ind++
 			}
 			if prevInd > 0 {
-				write(arr[prevInd-1], &builder, cnt-1)
+				add(arr[prevInd-1], &builder, cnt-1)
 			} else {
-				return "", errors.New("wrong string")
+				return "", errors.New("invalid string")
 			}
 			continue
-		} else if string(curCh) == `\` {
+		} else if string(r) == `\` {
 			if ind < len(arr)-1 {
 				builder.WriteString(string(arr[ind+1]))
 				ind++
 			} else {
-				return "", errors.New("wrong string")
+				return "", errors.New("invalid string")
 			}
 		}
 		ind++
@@ -90,16 +89,80 @@ func extract(s string) (string, error) {
 }
 
 func main() {
-	fmt.Println(extract(`a\`))
-	fmt.Println(extract(`a4bc2d5e`))
-	fmt.Println(extract(`abcd`))
-	fmt.Println(extract(`a11b`))
-	fmt.Println(extract(`a12`))
-	fmt.Println(extract(`45`))
-	fmt.Println(extract(``))
+	example1, err1 := string_unpacking(`a\`)
+	if err1 != nil {
+		fmt.Println(err1)
+	} else {
+		fmt.Println(example1)
+	}
+	
+	example2, err2 := string_unpacking(`a4bc2d5e`)
+	if err2 != nil {
+		fmt.Println(err2)
+	} else {
+		fmt.Println(example2)
+	}
 
-	fmt.Println(extract(`qwe\4\5`))
-	fmt.Println(extract(`qwe\45`))
-	fmt.Println(extract(`qwe\\5`))
-	fmt.Println(extract(`qwe\\`))
+	example3, err3 := string_unpacking(`abcd`)
+	if err3 != nil {
+		fmt.Println(err3)
+	} else {
+		fmt.Println(example3)
+	}
+
+	example4, err4 := string_unpacking(`a11b`)
+	if err4 != nil {
+		fmt.Println(err4)
+	} else {
+		fmt.Println(example4)
+	}
+
+	example5, err5 := string_unpacking(`a12`)
+	if err5 != nil {
+		fmt.Println(err5)
+	} else {
+		fmt.Println(example5)
+	}
+
+	example6, err6 := string_unpacking(`45`)
+	if err6 != nil {
+		fmt.Println(err6)
+	} else {
+		fmt.Println(example6)
+	}
+
+	example7, err7 := string_unpacking(``)
+	if err7 != nil {
+		fmt.Println(err7)
+	} else {
+		fmt.Println(example7)
+	}
+
+	example8, err8 := string_unpacking(`qwe\4\5`)
+	if err8 != nil {
+		fmt.Println(err8)
+	} else {
+		fmt.Println(example8)
+	}
+
+	example9, err9 := string_unpacking(`qwe\45`)
+	if err9 != nil {
+		fmt.Println(err9)
+	} else {
+		fmt.Println(example9)
+	}
+
+	example10, err10 := string_unpacking(`qwe\\5`)
+	if err10 != nil {
+		fmt.Println(err10)
+	} else {
+		fmt.Println(example10)
+	}
+
+	example11, err11 := string_unpacking(`qwe\\`)
+	if err11 != nil {
+		fmt.Println(err11)
+	} else {
+		fmt.Println(example11)
+	}
 }
