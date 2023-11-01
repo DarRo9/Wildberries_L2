@@ -1,53 +1,39 @@
 package main
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
-type fakeWriter struct {
-	content string
-}
-
-func (f *fakeWriter) Write(p []byte) (n int, err error) {
-	f.content += string(p)
-	return 0, nil
-}
-
-func Test_main(t *testing.T) {
-	var testTable = []struct {
-		legalTimeHost     bool
-		timeHost          string
-		expectedCurTime   time.Time
-		expectedExactTime time.Time
+func Test_extract(t *testing.T) {
+	var table = []struct {
+		input       string
+		expectedOut string
+		err         bool
 	}{
 		{
-			legalTimeHost: true,
-			timeHost:      "0.beevik-ntp.pool.ntp.org",
+			input:       `a\`,
+			expectedOut: ``,
+			err:         true,
 		},
 		{
-			legalTimeHost: false,
-			timeHost:      "",
+			input:       `a4bc2d5e`,
+			expectedOut: `aaaabccddddde`,
+			err:         false,
+		},
+		{
+			input:       `45`,
+			expectedOut: ``,
+			err:         true,
+		},
+		{
+			input:       `qwe\45`,
+			expectedOut: `qwe44444`,
+			err:         false,
 		},
 	}
 
-	for _, test := range testTable {
-		errFakeWriter := fakeWriter{}
-		Stderr = &errFakeWriter
-
-		outFakeWriter := fakeWriter{}
-		Stdout = &outFakeWriter
-
-		TimeHost = test.timeHost
-
-		ExitFunc = func(n int) {}
-
-		main()
-
-		if test.legalTimeHost && errFakeWriter.content != "" {
-			t.Error("Cannot get time from ntp server")
-		} else if !test.legalTimeHost && errFakeWriter.content == "" {
-			t.Error("Error code not returned to OS")
+	for _, test := range table {
+		out, err := string_unpacking(test.input)
+		if out != test.expectedOut || test.err && err == nil || !test.err && err != nil {
+			t.Error("Wrong result")
 		}
 	}
 }
