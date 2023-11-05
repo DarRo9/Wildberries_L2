@@ -35,8 +35,8 @@ import (
 	"time"
 )
 
-// Функция объединяет несколько каналов в один
-func or(channels ...<-chan interface{}) <-chan interface{} {
+// synthesize_channel объединяет несколько каналов в один
+func synthesize_channel(channels ...<-chan interface{}) <-chan interface{} {
 	out := make(chan interface{})
 	var wg sync.WaitGroup
 	wg.Add(len(channels))
@@ -56,7 +56,8 @@ func or(channels ...<-chan interface{}) <-chan interface{} {
 }
 
 func main() {
-	sig := func(after time.Duration) <-chan interface{} {
+	//channel_for_synthesize_channel возвращает один канал
+	channel_for_synthesize_channel := func(after time.Duration) <-chan interface{} {
 		c := make(chan interface{})
 		go func() {
 			defer close(c)
@@ -65,15 +66,15 @@ func main() {
 		return c
 	}
 
-	start := time.Now()
-	<-or(
-		sig(2*time.Hour),
-		sig(5*time.Minute),
-		sig(1*time.Second),
-		sig(1*time.Hour),
-		sig(1*time.Minute),
+	beginning := time.Now()
+	<-synthesize_channel(
+		channel_for_synthesize_channel(2*time.Second),
+		channel_for_synthesize_channel(5*time.Second),
+		channel_for_synthesize_channel(8*time.Second),
+		channel_for_synthesize_channel(9*time.Second),
+		channel_for_synthesize_channel(10*time.Second),
 	)
 
-	fmt.Printf("Done after %v", time.Since(start))
+	fmt.Printf("fone after %v", time.Since(beginning))
 
 }
