@@ -36,46 +36,6 @@ type Flags struct {
 	port    int
 }
 
-// flagParsing парсит флаги
-func flagParsing() *Flags {
-	concreteflags := Flags{}
-	var timeoutStr string
-	pflag.StringVar(&timeoutStr, "timeout", "15s", "connection timeout")
-	pflag.Parse()
-
-	var err error
-	concreteflags.timeout, err = timeoutParsing(timeoutStr)
-	if err != nil {
-		log.Fatal("Неправильный тайм-аут: ", timeoutStr)
-	}
-
-	args := pflag.Args()
-	if len(args) < 1 {
-		log.Fatal("Вы должны указать хост")
-	}
-
-	hostURL, err := url.Parse(args[0])
-	if err != nil {
-		log.Fatal("Неправильный хост: ", args[0])
-	}
-	_, err = strconv.Atoi(args[0])
-	if err == nil {
-		log.Fatal("Неправильный хост: ", args[0])
-	}
-
-	concreteflags.host = hostURL.String()
-
-	if len(args) == 2 {
-		portNum, err := strconv.Atoi(args[1])
-		if err != nil {
-			log.Fatal("Неправильный порт: ", args[1])
-		}
-		concreteflags.port = portNum
-	}
-
-	return &concreteflags
-}
-
 // timeoutParsing парсит строку с timeout (например: 10s, 5m, 4h)
 func timeoutParsing(timeout string) (time.Duration, error) {
 	if len(timeout) <= 1 {
@@ -161,9 +121,50 @@ func telnet(concreteflags *Flags) {
 	}
 }
 
+// flagParsing парсит флаги
+func flagParsing() *Flags {
+	concreteflags := Flags{}
+	var timeoutStr string
+	pflag.StringVar(&timeoutStr, "timeout", "15s", "connection timeout")
+	pflag.Parse()
+
+	var err error
+	concreteflags.timeout, err = timeoutParsing(timeoutStr)
+	if err != nil {
+		log.Fatal("Неправильный тайм-аут: ", timeoutStr)
+	}
+
+	args := pflag.Args()
+	if len(args) < 1 {
+		log.Fatal("Вы должны указать хост")
+	}
+
+	hostURL, err := url.Parse(args[0])
+	if err != nil {
+		log.Fatal("Неправильный хост: ", args[0])
+	}
+	_, err = strconv.Atoi(args[0])
+	if err == nil {
+		log.Fatal("Неправильный хост: ", args[0])
+	}
+
+	concreteflags.host = hostURL.String()
+
+	if len(args) == 2 {
+		portNum, err := strconv.Atoi(args[1])
+		if err != nil {
+			log.Fatal("Неправильный порт: ", args[1])
+		}
+		concreteflags.port = portNum
+	}
+
+	return &concreteflags
+}
+
 func main() {
 	concreteflags := flagParsing()
 
 	telnet(concreteflags)
 }
+
 
