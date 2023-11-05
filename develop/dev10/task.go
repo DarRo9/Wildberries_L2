@@ -17,7 +17,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	flag "github.com/spf13/pflag"
 	"io"
 	"log"
 	"net"
@@ -27,59 +26,60 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	pflag "github.com/spf13/pflag"
 )
 
-// Флаги запуска программы
 type Flags struct {
 	timeout time.Duration
 	host    string
 	port    int
 }
 
-// Функция парсит флаги
-func parseFlags() *Flags {
-	flags := Flags{}
+// flagParsing парсит флаги
+func flagParsing() *Flags {
+	concreteflags := Flags{}
 	var timeoutStr string
-	flag.StringVar(&timeoutStr, "timeout", "10s", "connection timeout")
-	flag.Parse()
+	pflag.StringVar(&timeoutStr, "timeout", "15s", "connection timeout")
+	pflag.Parse()
 
 	var err error
-	flags.timeout, err = parseTimeout(timeoutStr)
+	concreteflags.timeout, err = timeoutParsing(timeoutStr)
 	if err != nil {
-		log.Fatal("Wrong timeout: ", timeoutStr)
+		log.Fatal("Неправильный тайм-аут: ", timeoutStr)
 	}
 
-	args := flag.Args()
+	args := pflag.Args()
 	if len(args) < 1 {
-		log.Fatal("You must specify host")
+		log.Fatal("Вы должны указать хост")
 	}
 
 	hostURL, err := url.Parse(args[0])
 	if err != nil {
-		log.Fatal("Wrong host: ", args[0])
+		log.Fatal("Неправильный хост: ", args[0])
 	}
 	_, err = strconv.Atoi(args[0])
 	if err == nil {
-		log.Fatal("Wrong host: ", args[0])
+		log.Fatal("Неправильный хост: ", args[0])
 	}
 
-	flags.host = hostURL.String()
+	concreteflags.host = hostURL.String()
 
 	if len(args) == 2 {
 		portNum, err := strconv.Atoi(args[1])
 		if err != nil {
-			log.Fatal("Incorrect port: ", args[1])
+			log.Fatal("Неправильный порт: ", args[1])
 		}
-		flags.port = portNum
+		concreteflags.port = portNum
 	}
 
-	return &flags
+	return &concreteflags
 }
 
-// Функция парсит строку с timeout (например: 10s, 5m, 4h)
-func parseTimeout(timeout string) (time.Duration, error) {
+// timeoutParsing парсит строку с timeout (например: 10s, 5m, 4h)
+func timeoutParsing(timeout string) (time.Duration, error) {
 	if len(timeout) <= 1 {
-		return 10 * time.Second, errors.New("bad timeout")
+		return 10 * time.Second, errors.New("ложный тайм-аут")
 	}
 	valueStr := timeout[:len(timeout)-1]
 	value, err := strconv.Atoi(valueStr)
@@ -95,65 +95,65 @@ func parseTimeout(timeout string) (time.Duration, error) {
 	case 'h':
 		return time.Duration(value) * time.Hour, nil
 	default:
-		return 10 * time.Second, errors.New("Wrong measure: " + string(timeout[len(timeout)-1]))
+		return 10 * time.Second, errors.New("Неправильная мера: " + string(timeout[len(timeout)-1]))
 	}
 }
 
-// Функция реализует telnet клиент
-func telnet(flags *Flags) {
-	// Создаем канал для системных сигналов
-	gracefulShutdown := make(chan os.Signal, 1)
-	// Принимаем в этот канал оповщения о SIGINT, SIGTERM, SIGQUIT
-	signal.Notify(gracefulShutdown, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+// telnet реализует telnet клиент
+func telnet(concreteflags *Flags) {
+	// Создание канала для системных сигналов
+	gs := make(chan os.Signal, 1)
+	// Отправка сигнала в этот канал оповщения о SIGINT, SIGTERM, SIGQUIT
+	signal.Notify(gs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	// Формируем строку подключения
+	// Формирование строки подключения
 	var fullHost string
-	if flags.port != 0 {
-		fullHost = flags.host + ":" + strconv.Itoa(flags.port)
+	if concreteflags.port != 0 {
+		fullHost = concreteflags.host + ":" + strconv.Itoa(concreteflags.port)
 	} else {
-		fullHost = flags.host + ":80"
+		fullHost = concreteflags.host + ":80"
 	}
 
-	// Открываем сокет
-	conn, err := net.DialTimeout("tcp", fullHost, flags.timeout)
+	// Открытие сокета
+	conn, err := net.DialTimeout("tcp", fullHost, concreteflags.timeout)
 
-	// Обрабатываем ошибки
+	// Обрабатка ошибки
 	var dnsErr *net.DNSError
 	switch {
 	case errors.As(err, &dnsErr):
-		time.Sleep(flags.timeout)
+		time.Sleep(concreteflags.timeout)
 		log.Println("DNS error: ", err)
 		os.Exit(0)
 	case err != nil:
-		log.Fatal("Cannot open connection: ", err)
+		log.Fatal("Невозможно открыть соединение: ", err)
 	}
 
-	// Отслеживаем graceful-shutdown
+	// Отслеживание graceful-shutdown
 	go func(conn net.Conn) {
-		<-gracefulShutdown
+		<-gs
 		err := conn.Close()
 		if err != nil {
-			log.Println("Cannot close socket")
+			log.Println("Невозможно закрыть сокет")
 			os.Exit(1)
 		}
 		os.Exit(0)
 	}(conn)
 
-	// Устанавливаем первоначальный таймаут на ответ в 5 секунд
+	// Установка первоначального таймаута на ответ в 5 секунд
 	_ = conn.SetReadDeadline(time.Now().Add(time.Duration(5) * time.Second))
 	for {
 		fmt.Print(">")
 
-		// Отправляем данные из консольного ввода в сокет
+		// Отправка данных из консольного ввода в сокет
 		_, err = io.Copy(conn, os.Stdin)
 
 		_ = conn.SetReadDeadline(time.Now().Add(time.Duration(700) * time.Millisecond))
 
-		// Принимаем данные из сокета в консольный вывод
+		// Принятие данных из сокета в консольный вывод
 		_, err := io.Copy(os.Stdout, conn)
-		// Проверяем не закрылся ли сокет
+		// Проверка не закрылся ли сокет
 		if errors.Is(err, net.ErrClosed) {
-			fmt.Println("Socket is closed")
+			fmt.Println("Сокет закрыт")
 			os.Exit(0)
 		}
 
@@ -162,9 +162,8 @@ func telnet(flags *Flags) {
 }
 
 func main() {
-	// Парсим флаги
-	flags := parseFlags()
+	concreteflags := flagParsing()
 
-	// Запускаем telnet
-	telnet(flags)
+	telnet(concreteflags)
 }
+
